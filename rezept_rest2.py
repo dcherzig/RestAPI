@@ -1,12 +1,14 @@
 import sqlite3
 from flask import Flask, jsonify, request
 from sqlite3 import Error
-from werkzeug.http import HTTP_STATUS_CODES
+import os
+
 
 app = Flask(__name__)
-
+cwd = os.getcwd
 #======================##initialize the db and fill in the first data##=============#
-database = r"C:\Users\danie\Documents\GitHub\wdb\flask\database.db"
+database = ".\database.db"
+
 connection = sqlite3.connect('database.db', detect_types=sqlite3.PARSE_DECLTYPES)
 with open('schema.sql') as f:
   connection.executescript(f.read())
@@ -38,68 +40,85 @@ def get_post():
   """Input: -
   Funktion um alle Rezepte auszuwählen
   Output: alle Rezepte in der Datenbank inkl. Titel, Zutaten und Beschreibung"""
-  db = get_db()
-  cursor = db.cursor()
-  cursor.execute('SELECT * FROM rezepte')
-  rezepte = [dict(id=row[0], titel=row[1], zutaten=row[2], beschreibung = row[3]) for row in cursor.fetchall()]
-  if rezepte is not None:
-    return rezepte
+  try:
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT * FROM rezepte')
+    rezepte = [dict(id=row[0], titel=row[1], zutaten=row[2], beschreibung = row[3]) for row in cursor.fetchall()]
+    if rezepte is not None:
+      return rezepte
+  except Exception:
+    raise
   
+
 
 def get_id(id):
   """Input: id
   Funktion um ein Rezept anhand der id auszuwählen
   Output: Rezept inkl. Titel, Zutaten und Beschreibung
   """
-  db = get_db()
-  cursor = db.cursor()
-  rezept = None
-  cursor.execute('SELECT * FROM rezepte WHERE id = ?', (id,))
-  rows = cursor.fetchall()
-  for r in rows:
-    rezept = r
-  if rezept is not None:
-    return rezept
-  else:
-    return f"Ressource wurde nicht gefunden", 404
+  try:
+    db = get_db()
+    cursor = db.cursor()
+    rezept = None
+    cursor.execute('SELECT * FROM rezepte WHERE id = ?', (id,))
+    rows = cursor.fetchall()
+    for r in rows:
+      rezept = r
+    if rezept is not None:
+      return rezept
+  except Exception:
+    raise
+
 
 
 def insert_post(new_titel, new_zutaten, new_beschreibung):
   """Input: titel, Zutaten, Beschreibung
   Funktion um ein neues Rezept zu erstellen
   Output: Neues Rezept wird in die Datenbank eingefügt"""
-  db = get_db()
-  cursor = db.cursor()
-  cursor.execute('INSERT INTO rezepte (titel, zutaten, beschreibung) VALUES (?,?,?)', (new_titel, new_zutaten, new_beschreibung))
-  db.commit()
-  return True
+  try:
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('INSERT INTO rezepte (titel, zutaten, beschreibung) VALUES (?,?,?)', (new_titel, new_zutaten, new_beschreibung))
+    db.commit()
+    return True
+  except Exception:
+    raise
+  
 
 
 def update_post(titel, zutaten, beschreibung, id):
   """Input: titel, Zutaten, Beschreibung, id
   Funktion um ein bestehendes Rezept anhand der id auszuwählen und anzupassen
   Output: aktualisiertes Rezept wird in der Datenbank eingefügt"""
-  db = get_db()
-  updated_rezept = {
-    "id": id,
-    "titel": titel,
-    "zutaten": zutaten,
-    "beschreibung": beschreibung,
-  }
-  db.execute('UPDATE rezepte SET titel = ?, zutaten = ?, beschreibung = ?' 'WHERE id = ?', (titel, zutaten, beschreibung, id))
-  db.commit()
-  return updated_rezept
+  try:
+    db = get_db()
+    updated_rezept = {
+      "id": id,
+      "titel": titel,
+      "zutaten": zutaten,
+      "beschreibung": beschreibung,
+    }
+    db.execute('UPDATE rezepte SET titel = ?, zutaten = ?, beschreibung = ?' 'WHERE id = ?', (titel, zutaten, beschreibung, id))
+    db.commit()
+    return updated_rezept
+  except Exception:
+    raise
 
 
 def delete_post(id):
   """Input: id
   Funktion um ein Rezept aus der Datenbank zu löschen
   Output: Rezept wird in der Datenbank gelöscht"""
-  db = get_db()
-  #cursor = db.cursor()
-  db.execute('DELETE FROM rezepte WHERE id= ?', (id,))
-  db.commit()
-  return "Das Rezept mit der id: {} wurde geloescht".format(id)
+  try:
+    db = get_db()
+    #cursor = db.cursor()
+    db.execute('DELETE FROM rezepte WHERE id= ?', (id,))
+    db.commit()
+    return "Das Rezept mit der id: {} wurde geloescht".format(id)
+  except Exception:
+    raise
+  
 
 
 
@@ -116,11 +135,15 @@ def rezepte():
   if request.method == "GET":
     return jsonify(get_post())
   if request.method == "POST":
-    new_titel = request.form["titel"]
-    new_zutaten = request.form["zutaten"]
-    new_beschreibung = request.form["beschreibung"]
-    insert_post(new_titel, new_zutaten, new_beschreibung)
-  return f"Rezept wurde erfolgreich kreiert", 201
+    try:
+      new_titel = request.form["titel"]
+      new_zutaten = request.form["zutaten"]
+      new_beschreibung = request.form["beschreibung"]
+      insert_post(new_titel, new_zutaten, new_beschreibung)
+      return f"Rezept wurde erfolgreich kreiert", 201
+    except Exception as e:
+      return f"Fehler beim Hinzufuegen des Rezepts", 400
+
     
 
 @app.route('/rezept/<int:id>', methods=["GET", "PUT", "DELETE"])
@@ -129,15 +152,29 @@ def get_rezept_id(id):
   Input: id
   Output: Ein Rezept, das verändert, gelesen oder gelöscht wird """
   if request.method == "GET":
-    return jsonify(get_id(id))
+    try:
+      rezept = get_id(id)
+      if rezept is None:
+        return f"Fehler beim Laden", 404
+      return jsonify(rezept)
+    except Exception as e:
+      return jsonify(f"Fehler beim Laden des Rezepts: {e}")
   if request.method == "PUT":
-    titel = request.form["titel"]
-    zutaten = request.form["zutaten"]
-    beschreibung = request.form["beschreibung"]
-    update_post(titel, zutaten, beschreibung, id) 
-    return f"Rezept wurde erfolgreich geändert"
+    try:
+      titel = request.form["titel"]
+      zutaten = request.form["zutaten"]
+      beschreibung = request.form["beschreibung"]
+      update_post(titel, zutaten, beschreibung, id) 
+      return f"Rezept wurde erfolgreich geaendert"
+    except Exception as e:
+      return f"Fehler beim Aendern des Rezepts", 400
   if request.method == "DELETE":
-    return delete_post(id)
+    try:
+      if id in get_id(id):
+        return delete_post(id)
+      return f"Dieses Rezept existiert nicht", 400
+    except Exception as e:
+      return f"Fehler beim Loeschen des Rezepts", 400
 
 @app.errorhandler(405)
 def page_not_found(e):
